@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#C41230">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="LWH Receiving">
+<title>Offline Receiving | LWH</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <button id="backBtn" class="back" hidden aria-label="Back to receipts">&lsaquo; Receipts</button>
+    <div class="brand">
+      <span class="brand-co">LWH</span>
+      <span class="brand-app">Receiving</span>
+    </div>
+    <div class="pills">
+      <span id="netPill" class="pill">Checking</span>
+      <span id="queuePill" class="pill pill-warn" hidden>0 to send</span>
+    </div>
+    <div class="wx" aria-live="off">
+      <span id="clock">--:--</span>
+      <span id="wxNow"></span>
+      <span id="wxDay"></span>
+    </div>
+  </header>
+  <div id="updateBar" class="update-bar" hidden>
+    A new version is loaded. <button id="reloadBtn" class="btn btn-small">Reload</button>
+  </div>
+
+  <!-- HOME -->
+  <main id="viewHome" class="view">
+    <div id="setupWarn" class="fail-box" hidden>Setup needed: enter the server link and access key under Settings before sending receipts.</div>
+    <div class="home-actions">
+      <button id="newBtn" class="btn btn-primary btn-xl">Start new receipt</button>
+    </div>
+    <h2 class="section-title">Receipts on this device</h2>
+    <div id="receiptList" class="load-list"></div>
+
+    <section class="tools">
+      <h2 class="section-title">Settings</h2>
+      <p class="hint">Set these once per phone or tablet. Your IT contact or Tim has the server link and key.</p>
+      <label class="field"><span>Your name (received by)</span>
+        <input id="sName" class="big" autocomplete="name" maxlength="60"></label>
+      <label class="field"><span>Site</span>
+        <input id="sSite" class="big" maxlength="80" placeholder="New warehouse"></label>
+      <label class="field"><span>Server link (Apps Script web app URL)</span>
+        <input id="sUrl" class="big" type="url" autocomplete="off" spellcheck="false" placeholder="https://script.google.com/macros/s/.../exec"></label>
+      <label class="field"><span>Access key</span>
+        <input id="sKey" class="big" type="password" autocomplete="off"></label>
+      <div class="tool-row">
+        <button id="saveSettingsBtn" class="btn btn-primary">Save settings</button>
+        <button id="testBtn" class="btn">Test connection</button>
+        <button id="sendAllBtn" class="btn">Send waiting receipts</button>
+      </div>
+      <p class="msg" id="settingsMsg" role="status"></p>
+      <p class="meta" id="storageInfo"></p>
+    </section>
+    <p class="foot">LWH Offline Receiving <span id="verLbl"></span></p>
+  </main>
+
+  <!-- RECEIPT HEADER FORM -->
+  <main id="viewForm" class="view" hidden>
+    <h2 id="formTitle" class="section-title">New receipt</h2>
+    <p class="hint">Fill in what's on the BOL. Every field accepts a scan. Fields marked <span class="req">*</span> are required.</p>
+    <form id="headForm" autocomplete="off" novalidate>
+      <label class="field"><span>BOL number <span class="req">*</span></span>
+        <div class="in-row">
+          <input id="fBol" class="big" required enterkeyhint="next" autocapitalize="characters" spellcheck="false">
+          <button type="button" class="cam-btn" data-target="fBol">Camera</button>
+        </div></label>
+      <div class="grid2">
+        <label class="field"><span>Customer <span class="req">*</span></span>
+          <input id="fCustomer" class="big" required enterkeyhint="next"></label>
+        <label class="field"><span>Carrier</span>
+          <input id="fCarrier" class="big" enterkeyhint="next"></label>
+        <label class="field"><span>Trailer number</span>
+          <input id="fTrailer" class="big" enterkeyhint="next" autocapitalize="characters"></label>
+        <label class="field"><span>PO / reference</span>
+          <input id="fPo" class="big" enterkeyhint="next" autocapitalize="characters"></label>
+        <label class="field"><span>Seal number</span>
+          <input id="fSeal" class="big" enterkeyhint="next" autocapitalize="characters"></label>
+        <label class="field"><span>Units on BOL (expected)</span>
+          <input id="fExpected" class="big" inputmode="numeric" enterkeyhint="done"></label>
+      </div>
+      <label class="field"><span>Notes</span>
+        <textarea id="fNotes" class="big" maxlength="1000"></textarea></label>
+      <p id="formMsg" class="msg err" role="alert"></p>
+      <div class="tool-row">
+        <button type="submit" class="btn btn-primary btn-xl">Save and continue</button>
+        <button type="button" id="formCancel" class="btn">Cancel</button>
+      </div>
+    </form>
+  </main>
+
+  <!-- RECEIPT WORK VIEW -->
+  <main id="viewReceipt" class="view" hidden>
+    <section class="load-head">
+      <div class="lh-grid">
+        <div><span class="lbl">BOL</span><strong id="hBol"></strong></div>
+        <div><span class="lbl">Customer</span><strong id="hCustomer"></strong></div>
+        <div><span class="lbl">Carrier / trailer</span><strong id="hCarrier"></strong></div>
+        <div><span class="lbl">PO / seal</span><strong id="hPo"></strong></div>
+      </div>
+      <div class="lh-stats">
+        <div class="stat"><strong id="sUnits">0</strong><span id="sUnitsLbl">units</span></div>
+        <div class="stat"><strong id="sPhotos">0</strong><span>photos</span></div>
+        <button id="editHeadBtn" class="btn btn-small">Edit BOL info</button>
+      </div>
+    </section>
+
+    <div id="lockedBanner" class="closed-banner" hidden>This receipt was sent to the office. It is read-only.</div>
+
+    <!-- Photos -->
+    <section class="card" id="photoCard">
+      <h3>1. BOL and document photos</h3>
+      <p class="hint">Take a clear, flat photo of each BOL page. Add damage or label photos if needed.</p>
+      <div class="photo-btns">
+        <label class="btn btn-primary" for="photoBol">Take BOL photo</label>
+        <label class="btn" for="photoOther">Damage / other photo</label>
+      </div>
+      <input id="photoBol" type="file" accept="image/*" capture="environment" hidden>
+      <input id="photoOther" type="file" accept="image/*" capture="environment" hidden>
+      <div id="photoGrid" class="photo-grid"></div>
+    </section>
+
+    <!-- Unit scan -->
+    <section class="card" id="unitCard">
+      <h3>2. Scan units</h3>
+      <p class="hint">Scan or type each field. The scanner's Enter moves to the next field and saves the unit on the last one.</p>
+      <div id="scanBox" class="scan-box">
+        <div id="unitFields"></div>
+        <p id="scanMsg" class="scan-msg" role="status">Ready for the first unit.</p>
+        <div class="unit-actions">
+          <button id="saveUnitBtn" class="btn btn-primary">Save unit</button>
+          <button id="clearUnitBtn" class="btn">Clear</button>
+        </div>
+      </div>
+
+      <h2 class="section-title">Units on this receipt <span class="meta" id="unitCountLbl"></span></h2>
+      <div class="table-wrap">
+        <table class="pallets" id="unitTable">
+          <thead id="unitHead"></thead>
+          <tbody id="unitBody"></tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <button id="csvBtn" class="btn btn-small">Download CSV</button>
+      </div>
+    </section>
+
+    <!-- Send -->
+    <section class="card send-card" id="sendCard">
+      <h3>3. Send to office</h3>
+      <ul id="checklist" class="checklist"></ul>
+      <button id="sendBtn" class="btn btn-primary btn-xl">Send to office</button>
+      <div id="sendResult"></div>
+      <div class="actions">
+        <button id="deleteBtn" class="btn btn-danger btn-small">Delete receipt</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="camOverlay" class="cam-overlay" hidden>
+  <div class="cam-card">
+    <div class="cam-head"><strong id="camTitle">Scan</strong><button id="camClose" class="btn btn-small">Cancel</button></div>
+    <div id="camReader"></div>
+    <p class="hint" id="camHint">Hold the barcode flat and fill the box.</p>
+  </div>
+</div>
+
+<div id="busy" class="busy" hidden>
+  <div><span id="busyText">Sending to office...</span><div class="bar"><i id="busyBar"></i></div></div>
+</div>
+
+<script src="vendor/html5-qrcode.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
