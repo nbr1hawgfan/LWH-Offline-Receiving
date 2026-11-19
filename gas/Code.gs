@@ -307,9 +307,13 @@ function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).se
 function testEmail() {
   const ss = SpreadsheetApp.openById(props_().getProperty('SHEET_ID'));
   const folder = DriveApp.getFolderById(props_().getProperty('FOLDER_ID'));
-  const fields = [{ key: 'model', label: 'Model number' }, { key: 'serial', label: 'Serial number' }, { key: 'weight', label: 'Unit weight (lbs)' }, { key: 'year', label: 'Model / production year' }];
-  const r = { bol: 'TEST123', customer: 'Sample Customer', carrier: 'Sample Carrier', trailer: '5301', expected: 3, receivedBy: 'Test', site: 'New warehouse',
+  const fields = [{ key: 'model', label: 'Model number' }, { key: 'product', label: 'Product number' }, { key: 'color', label: 'Color' },
+    { key: 'vin', label: 'VIN' }, { key: 'year', label: 'Model year' }, { key: 'engine', label: 'Engine number' },
+    { key: 'vehicleCode', label: 'Vehicle code' }, { key: 'prodDate', label: 'Production date' }];
+  const r = { bol: 'TEST123', customer: 'CFMOTO', carrier: 'Sample Carrier', trailer: '5301', expected: 2, receivedBy: 'Test', site: 'New warehouse',
     createdAt: new Date().toISOString(), sentAt: new Date().toISOString(), notes: 'Layout test' };
-  const units = [{ n: 1, model: 'AB-100', serial: 'SN0001', weight: '1250', year: '2026' }, { n: 2, model: 'AB-100', serial: 'SN0002', weight: '1250', year: '2026' }];
+  const base = { model: 'CM1000UZ-8K', product: 'U26BWABBMUSEH', color: 'NEBULA BLACK', year: '2026', prodDate: '2026-05-14' };
+  const units = [Object.assign({ n: 1, vin: 'LCELE1ZF4TM005145', engine: '380Y-3 TC130205', vehicleCode: 'MP7002154915' }, base),
+    Object.assign({ n: 2, vin: 'LCELE1ZF6TM005146', engine: '', vehicleCode: '' }, base)];
   sendEmail_(r, fields, units, [], 'RCV-TEST', folder, ss);
 }

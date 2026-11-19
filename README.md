@@ -1,4 +1,4 @@
-# LWH Offline Receiving (v1.0.0)
+# LWH Offline Receiving (v1.1.0)
 
 Receiving app for a site with cellular but no connection to the LWH network or WMS.
 Floor staff capture the BOL info, take photos of the BOL, and scan each unit (model, serial, weight, year).
@@ -10,9 +10,14 @@ Floor staff capture the BOL info, take photos of the BOL, and scan each unit (mo
 ## How it works on the floor
 1. **Start new receipt**: BOL number, customer, carrier, trailer, PO, seal, units on BOL, notes. Every field accepts a scan.
 2. **BOL photos**: Take BOL photo (one per page) and Damage / other photo. Photos are shrunk on the device (about 1800 px JPEG) so they send quickly over cellular.
-3. **Scan units**: The scanner's Enter moves to the next empty field and saves the unit on the last one.
-   - **Keep for next unit** holds the model, weight or year when a whole trailer is the same. Model is kept by default.
-   - Duplicate serials are blocked (same receipt or any receipt on the device). Weight must be a number and year must be four digits, which catches a wrong label scanned into the wrong field.
+3. **Scan units** (fields match the CFMOTO unit label):
+   - First unit: Model number, Product number and Color. These are kept for the next units.
+   - Each unit: **VIN**, then Engine number, Vehicle code and Production date. Enter skips a blank field, and the last field saves the unit.
+   - **The VIN is checked as it's scanned**: 17 characters, no I/O/Q, and the check digit must match, so a misread or typo is caught immediately. A leading "I" from VIN barcodes is removed.
+   - **Model year fills in from the VIN** (10th character; T = 2026).
+   - Production date accepts 2026-05-14, 5/14/2026 or 20260514 and is saved as 2026-05-14.
+   - **Take label photo (optional)** attaches a photo to the unit being scanned. It is named with the unit # and VIN in the email and in Drive.
+   - Duplicate VINs are blocked (same receipt or any receipt on the device).
    - **Camera** buttons scan with the phone or tablet camera if there's no hardware scanner.
 4. **Send to office**: The checklist shows BOL photo, unit count, and BOL count against scanned count.
    The app gets back an office reference (RCV-yymmdd-####) and the receipt locks.

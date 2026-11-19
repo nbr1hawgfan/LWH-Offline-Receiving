@@ -237,3 +237,7 @@ select.big:focus, textarea.big:focus { border-color: var(--red); outline: none; 
 /* Never break a serial or model number across lines; the table scrolls sideways instead */
 #unitTable td, #unitTable th { white-space: nowrap; overflow-wrap: normal; }
 #unitTable td { font-variant-numeric: tabular-nums; }
+.unit-photo { margin: 12px 0 0; padding: 10px 12px; border-left: 8px solid var(--line); }
+.unit-photo-state { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; font-weight: 700; color: var(--ok); }
+.unit-photo-state img { width: 70px; height: 70px; object-fit: cover; border: 2px solid var(--black); }
+.unit-photo-state:empty { display: none; }

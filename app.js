@@ -1,9 +1,11 @@
 /* LWH Offline Receiving - capture BOL info, BOL photos and scanned units; send to the office via Apps Script. */
 (function () {
   'use strict';
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
   const CFG = window.LWH_CONFIG;
   const FIELDS = CFG.unitFields;
+  // Unit table shows the unique field (VIN) first so it's visible on a phone without scrolling
+  const TFIELDS = FIELDS.filter((f) => f.unique).concat(FIELDS.filter((f) => !f.unique));
   const $ = (id) => document.getElementById(id);
 
   // ---------- small helpers ----------
@@ -12,6 +14,26 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const fmtDate = (iso) => new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+  // ---------- VIN ----------
+  const VIN_VAL = { A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7, H: 8, J: 1, K: 2, L: 3, M: 4, N: 5, P: 7, R: 9, S: 2, T: 3, U: 4, V: 5, W: 6, X: 7, Y: 8, Z: 9 };
+  const VIN_W = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
+  function vinCheck(v) {
+    let sum = 0;
+    for (let i = 0; i < 17; i++) { const c = v[i]; sum += (/\d/.test(c) ? +c : VIN_VAL[c]) * VIN_W[i]; }
+    const r = sum % 11;
+    return (r === 10 ? 'X' : String(r)) === v[8];
+  }
+  // 10th character = model year. Codes repeat every 30 years; take the latest year not past next year.
+  const YEAR_CODES = 'ABCDEFGHJKLMNPRSTVWXY123456789';
+  function vinYear(v) {
+    const i = YEAR_CODES.indexOf((v || '')[9]);
+    if (i < 0) return '';
+    const max = new Date().getFullYear() + 1;
+    let y = 1980 + i;
+    while (y + 30 <= max) y += 30;
+    return String(y);
+  }
 
   // ---------- settings ----------
   const SKEY = 'lwhrcv-settings';
@@ -202,7 +224,7 @@
     const lk = locked();
     $('photoGrid').innerHTML = current.photos.map((p, i) =>
       '<div class="photo"><img src="' + p.dataUrl + '" alt="' + esc(p.kind) + ' photo ' + (i + 1) + '">' +
-      '<span class="ph-tag">' + esc(p.kind) + ' ' + (i + 1) + '</span>' +
+      '<span class="ph-tag">' + (p.kind === 'Label' ? 'Unit #' + esc(p.unitN) : esc(p.kind) + ' ' + (i + 1)) + '</span>' +
       (lk ? '' : '<button class="ph-del" data-id="' + esc(p.id) + '" aria-label="Remove photo">Remove</button>') + '</div>').join('') ||
       '<div class="empty" style="grid-column:1/-1">No photos yet.</div>';
   }
@@ -239,19 +261,37 @@
     } catch (e) { alert(e.message || 'Could not add the photo.'); }
   }
 
+  // Label photo for the unit being scanned; attached when the unit saves
+  let pendingPhoto = null;
+  function renderPending() {
+    const box = $('unitPhotoState'); if (!box) return;
+    box.innerHTML = pendingPhoto ? '<img src="' + pendingPhoto.dataUrl + '" alt="Label photo for this unit"> Label photo ready, saves with this unit. <button type="button" id="dropPending" class="btn btn-small">Retake / remove</button>' : '';
+    $('unitPhotoBtnLbl').textContent = pendingPhoto ? 'Retake label photo' : 'Take label photo (optional)';
+  }
+  async function takeUnitPhoto(input) {
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file || !current || locked()) return;
+    try { pendingPhoto = await compress(file); renderPending(); beep(true); } catch (e) { alert(e.message || 'Could not add the photo.'); }
+    const next = FIELDS.findIndex((f, j) => inFlow(j) && !inp(j).value.trim());
+    if (next >= 0) inp(next).focus();
+  }
+
   // ---------- UNIT FORM ----------
   function buildUnitFields() {
     $('unitFields').innerHTML = FIELDS.map((f, i) =>
       '<div class="scan-field" data-i="' + i + '">' +
-      '<label for="u_' + f.key + '">' + esc(f.label) + (f.required ? ' <span class="req">*</span>' : '') + '</label>' +
+      '<label for="u_' + f.key + '">' + esc(f.label) + (f.required ? ' <span class="req">*</span>' : '') +
+      (f.auto === 'vinYear' ? ' <span class="meta">(fills in from the VIN)</span>' : '') + '</label>' +
       '<div class="in-row"><input id="u_' + f.key + '" class="scan-in" data-i="' + i + '" autocomplete="off" spellcheck="false" ' +
-      (f.type === 'number' || f.type === 'year' ? 'inputmode="decimal" ' : 'autocapitalize="characters" ') +
+      (f.type === 'number' || f.type === 'year' ? 'inputmode="decimal" ' : f.type === 'date' ? 'inputmode="numeric" placeholder="2026-05-14" ' : 'autocapitalize="characters" ') +
       'enterkeyhint="next">' +
       (f.camera ? '<button type="button" class="cam-btn" data-target="u_' + f.key + '">Camera</button>' : '') + '</div>' +
       (f.keep ? '<label class="keep"><input type="checkbox" id="k_' + f.key + '"' + (f.keepDefault ? ' checked' : '') + '> Keep for next unit</label>' : '') +
       '</div>').join('');
-    $('unitHead').innerHTML = '<tr><th>#</th>' + FIELDS.map((f) => '<th' + (f.key === 'notes' ? ' class="hide-sm"' : '') + '>' + esc(f.label) + '</th>').join('') +
-      '<th class="hide-sm">Time</th><th></th></tr>';
+    $('unitHead').innerHTML = '<tr><th>#</th>' + TFIELDS.map((f) => '<th' + (f.hideSm ? ' class="hide-sm"' : '') + '>' + esc(f.label) + '</th>').join('') +
+      (CFG.unitPhoto ? '<th>Photo</th>' : '') + '<th class="hide-sm">Time</th><th></th></tr>';
+    $('unitPhotoRow').hidden = !CFG.unitPhoto;
     FIELDS.forEach((f, i) => {
       const el = $('u_' + f.key);
       el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onFieldEnter(i); } });
@@ -271,6 +311,18 @@
     let v = String(raw || '').replace(/[\r\n\t]/g, '').trim();
     (f.strip || []).forEach((p) => { if (p && v.toUpperCase().startsWith(p.toUpperCase()) && v.length > p.length) v = v.slice(p.length); });
     if (f.type !== 'number' && f.type !== 'year' && f.key !== 'notes') v = v.toUpperCase();
+    if (f.type === 'vin') {
+      v = v.replace(/[\s-]/g, '');
+      if (v.length === 18 && v[0] === 'I') v = v.slice(1); // some VIN barcodes carry a leading "I"
+    }
+    if (f.type === 'date' && v) {
+      let m = v.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+      if (m) v = m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+      else if ((m = v.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/))) {
+        const yy = m[3].length === 2 ? '20' + m[3] : m[3];
+        v = yy + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0');
+      } else if ((m = v.match(/^(\d{4})(\d{2})(\d{2})$/))) v = m[1] + '-' + m[2] + '-' + m[3];
+    }
     return v;
   }
   function checkField(f, v) {
@@ -280,13 +332,32 @@
       if (!isFinite(n)) return f.label + ' must be a number. Was a different label scanned?';
       if (f.min != null && n < f.min || f.max != null && n > f.max) return f.label + ' must be between ' + f.min + ' and ' + f.max + '.';
     }
+    if (f.type === 'vin') {
+      if (v.length !== 17) return 'VIN must be 17 characters (this one has ' + v.length + '). Was a different barcode scanned?';
+      if (/[IOQ]/.test(v)) return 'VIN cannot contain the letters I, O or Q. Check for a typo (1 vs I, 0 vs O).';
+      if (!/^[A-Z0-9]{17}$/.test(v)) return 'VIN can only have letters and numbers.';
+      if (CFG.vinCheckDigit && !vinCheck(v)) return 'VIN ' + v + ' fails the check digit: one character is wrong. Rescan or check the label.';
+    }
+    if (f.type === 'date') {
+      const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      const d = m && new Date(+m[1], +m[2] - 1, +m[3]);
+      if (!d || d.getMonth() !== +m[2] - 1 || +m[1] < 2000 || +m[1] > 2040) return f.label + ' should look like 2026-05-14.';
+    }
     if (f.type === 'year') {
       if (!/^\d{4}$/.test(v)) return f.label + ' must be a 4-digit year.';
       const n = +v; if (n < f.min || n > f.max) return f.label + ' must be between ' + f.min + ' and ' + f.max + '.';
     }
     return null;
   }
-  function inFlow(i) { return FIELDS[i].key !== 'notes' && FIELDS[i].flow !== false; }
+  function inFlow(i) { const f = FIELDS[i]; return f.key !== 'notes' && f.flow !== false && !f.auto; }
+  function fillAuto() {
+    FIELDS.forEach((f, j) => {
+      if (f.auto !== 'vinYear') return;
+      const vf = FIELDS.findIndex((x) => x.type === 'vin');
+      const y = vf >= 0 ? vinYear(inp(vf).value) : '';
+      if (y) inp(j).value = y;
+    });
+  }
   // Move to the next field that still needs a value; returns false when nothing is left.
   function focusNext(from) {
     for (let j = from + 1; j < FIELDS.length; j++) {
@@ -312,8 +383,10 @@
       const d = findDup(FIELDS[i].key, el.value);
       if (d) { scanMsg(d, 'err'); beep(false); flash(false); el.select(); return; }
     }
+    if (FIELDS[i].type === 'vin') fillAuto();
     if (!focusNext(i)) saveUnit();
-    else scanMsg(FIELDS[i].label + ': ' + (el.value || '(blank)'), '');
+    else scanMsg(FIELDS[i].label + ': ' + (el.value || '(blank)') +
+      (FIELDS[i].type === 'vin' && vinYear(el.value) ? ' (model year ' + vinYear(el.value) + ')' : ''), '');
   }
   function findDup(key, value) {
     const k = norm(value);
@@ -329,6 +402,7 @@
   async function saveUnit() {
     if (!current || locked()) return;
     const u = { id: uid(), scannedAt: new Date().toISOString() };
+    fillAuto();
     for (let i = 0; i < FIELDS.length; i++) {
       const f = FIELDS[i];
       const v = cleanValue(f, inp(i).value);
@@ -340,6 +414,12 @@
     }
     u.n = current.units.reduce((m, x) => Math.max(m, x.n), 0) + 1;
     current.units.push(u);
+    if (pendingPhoto) {
+      const vk = (FIELDS.find((f) => f.type === 'vin') || FIELDS.find((f) => f.unique) || FIELDS[0]).key;
+      current.photos.push({ id: uid(), kind: 'Label', unitId: u.id, unitN: u.n, ref: u[vk] || '', ...pendingPhoto, takenAt: u.scannedAt });
+      u.photo = true;
+      pendingPhoto = null;
+    }
     edited();
     await persist(current);
     lastSavedId = u.id;
@@ -352,6 +432,7 @@
     focusNext(-1);
   }
   function resetUnitForm(full) {
+    pendingPhoto = null; renderPending();
     FIELDS.forEach((f, i) => { if (full || !kept(i)) inp(i).value = ''; });
     if (full) scanMsg(current && current.units.length ? 'Ready for the next unit.' : 'Ready for the first unit.', '');
     markActive(-1);
@@ -364,10 +445,11 @@
     const rows = r.units.slice().sort((a, b) => b.n - a.n);
     $('unitBody').innerHTML = rows.length ? rows.map((u) =>
       '<tr class="' + (u.id === lastSavedId ? 'fresh' : '') + '"><td>' + u.n + '</td>' +
-      FIELDS.map((f) => '<td' + (f.key === 'notes' ? ' class="hide-sm"' : '') + '>' + esc(u[f.key]) + '</td>').join('') +
+      TFIELDS.map((f) => '<td' + (f.hideSm ? ' class="hide-sm"' : '') + '>' + esc(u[f.key]) + '</td>').join('') +
+      (CFG.unitPhoto ? '<td>' + (u.photo ? 'Yes' : '-') + '</td>' : '') +
       '<td class="hide-sm">' + esc(fmtTime(u.scannedAt)) + '</td>' +
       '<td>' + (lk ? '' : '<button class="del-btn" data-id="' + esc(u.id) + '">Remove</button>') + '</td></tr>').join('')
-      : '<tr><td colspan="' + (FIELDS.length + 3) + '" class="meta">No units scanned yet.</td></tr>';
+      : '<tr><td colspan="' + (FIELDS.length + 4) + '" class="meta">No units scanned yet.</td></tr>';
   }
 
   // ---------- SEND ----------
@@ -377,7 +459,8 @@
     const out = [
       [!!r.bol, 'BOL number: ' + (r.bol || 'missing')],
       [bolPhotos > 0, bolPhotos ? bolPhotos + ' BOL photo' + (bolPhotos > 1 ? 's' : '') : 'No BOL photo yet'],
-      [r.units.length > 0, r.units.length + ' unit' + (r.units.length === 1 ? '' : 's') + ' scanned'],
+      [r.units.length > 0, r.units.length + ' unit' + (r.units.length === 1 ? '' : 's') + ' scanned' +
+        (CFG.unitPhoto && r.units.length ? ' (' + r.units.filter((u) => u.photo).length + ' with label photo)' : '')],
     ];
     if (r.expected) out.push([+r.expected === r.units.length, 'BOL shows ' + r.expected + ', scanned ' + r.units.length]);
     out.push([configured(), configured() ? 'Server link is set' : 'Server link not set (Settings on the home screen)']);
@@ -424,7 +507,9 @@
         units: r.units.map((u) => { const o = { n: u.n, scannedAt: u.scannedAt }; FIELDS.forEach((f) => { o[f.key] = u[f.key] || ''; }); return o; })
       },
       photos: r.photos.map((p, i) => ({
-        name: 'BOL-' + r.bol.replace(/[^A-Za-z0-9-]/g, '') + '-' + p.kind + '-' + (i + 1) + '.jpg',
+        name: p.kind === 'Label'
+          ? 'Unit' + String(p.unitN).padStart(3, '0') + '-' + String(p.ref || '').replace(/[^A-Za-z0-9-]/g, '') + '-label.jpg'
+          : 'BOL-' + r.bol.replace(/[^A-Za-z0-9-]/g, '') + '-' + p.kind + '-' + (r.photos.slice(0, i + 1).filter((x) => x.kind === p.kind).length) + '.jpg',
         kind: p.kind, mime: 'image/jpeg', data: p.dataUrl.split(',')[1]
       }))
     });
@@ -592,10 +677,14 @@
   $('editHeadBtn').addEventListener('click', () => openForm(true));
   $('photoBol').addEventListener('change', (e) => addPhoto(e.target, 'BOL'));
   $('photoOther').addEventListener('change', (e) => addPhoto(e.target, 'Other'));
+  $('photoUnit').addEventListener('change', (e) => takeUnitPhoto(e.target));
+  $('unitPhotoState').addEventListener('click', (e) => { if (e.target.id === 'dropPending') { pendingPhoto = null; renderPending(); } });
   $('photoGrid').addEventListener('click', async (e) => {
     const b = e.target.closest('.ph-del'); if (!b || locked()) return;
     if (!confirm('Remove this photo?')) return;
+    const gone = current.photos.find((p) => p.id === b.dataset.id);
     current.photos = current.photos.filter((p) => p.id !== b.dataset.id);
+    if (gone && gone.unitId) { const u = current.units.find((x) => x.id === gone.unitId); if (u) u.photo = false; }
     edited();
     await persist(current); renderReceipt();
   });
@@ -604,8 +693,9 @@
   $('unitBody').addEventListener('click', async (e) => {
     const b = e.target.closest('.del-btn'); if (!b || locked()) return;
     const u = current.units.find((x) => x.id === b.dataset.id); if (!u) return;
-    if (!confirm('Remove unit #' + u.n + '?')) return;
+    if (!confirm('Remove unit #' + u.n + (u.photo ? ' and its label photo' : '') + '?')) return;
     current.units = current.units.filter((x) => x.id !== u.id);
+    current.photos = current.photos.filter((p) => p.unitId !== u.id);
     edited();
     await persist(current); renderReceipt();
     scanMsg('Removed unit #' + u.n + '.', '');

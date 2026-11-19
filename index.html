@@ -134,9 +134,14 @@
     <!-- Unit scan -->
     <section class="card" id="unitCard">
       <h3>2. Scan units</h3>
-      <p class="hint">Scan or type each field. The scanner's Enter moves to the next field and saves the unit on the last one.</p>
+      <p class="hint">First unit: enter Model, Product and Color once; they carry over. Then each unit: scan the VIN (model year fills in), Engine, Vehicle code, Production date. Enter skips a blank field; the last one saves the unit.</p>
       <div id="scanBox" class="scan-box">
         <div id="unitFields"></div>
+        <div id="unitPhotoRow" class="unit-photo">
+          <label class="btn" for="photoUnit" id="unitPhotoBtnLbl">Take label photo (optional)</label>
+          <input id="photoUnit" type="file" accept="image/*" capture="environment" hidden>
+          <div id="unitPhotoState" class="unit-photo-state"></div>
+        </div>
         <p id="scanMsg" class="scan-msg" role="status">Ready for the first unit.</p>
         <div class="unit-actions">
           <button id="saveUnitBtn" class="btn btn-primary">Save unit</button>
