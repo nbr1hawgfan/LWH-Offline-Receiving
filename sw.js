@@ -1,5 +1,5 @@
 /* Offline cache for LWH Offline Receiving. Bump VERSION with every deploy (must match APP_VERSION in app.js). */
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const CACHE = 'lwh-receiving-' + VERSION;
 const ASSETS = [
   './', 'index.html', 'app.css', 'app.js', 'config.js', 'manifest.json',

@@ -1,7 +1,7 @@
 /* LWH Offline Receiving - capture BOL info, BOL photos and scanned units; send to the office via Apps Script. */
 (function () {
   'use strict';
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.2.0';
   const CFG = window.LWH_CONFIG;
   const FIELDS = CFG.unitFields;
   // Unit table shows the unique field (VIN) first so it's visible on a phone without scrolling
@@ -40,7 +40,11 @@
   let settings = {};
   try { settings = JSON.parse(localStorage.getItem(SKEY) || '{}'); } catch (e) { settings = {}; }
   const saveSettingsLocal = () => localStorage.setItem(SKEY, JSON.stringify(settings));
-  const configured = () => !!(settings.url && settings.key);
+  // The built-in server (config.js) is used unless a device has its own link saved under Advanced.
+  const SRV = CFG.server || {};
+  const srvUrl = () => settings.url || SRV.url || '';
+  const srvKey = () => settings.key || SRV.key || '';
+  const configured = () => !!(srvUrl() && srvKey());
 
   // ---------- IndexedDB ----------
   let dbp = null;
@@ -498,7 +502,7 @@
 
   function payload(r) {
     return JSON.stringify({
-      action: 'submit', key: settings.key, appVersion: APP_VERSION,
+      action: 'submit', key: srvKey(), appVersion: APP_VERSION,
       fields: FIELDS.map((f) => ({ key: f.key, label: f.label })),
       receipt: {
         id: r.id, bol: r.bol, customer: r.customer, carrier: r.carrier, trailer: r.trailer, po: r.po, seal: r.seal,
@@ -518,7 +522,7 @@
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 120000);
     try {
-      const res = await fetch(settings.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body, signal: ctl.signal, redirect: 'follow' });
+      const res = await fetch(srvUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body, signal: ctl.signal, redirect: 'follow' });
       const text = await res.text();
       let j; try { j = JSON.parse(text); } catch (e) { throw Object.assign(new Error('The server sent back something unexpected. Check the server link and that the web app is deployed for "Anyone".'), { server: true }); }
       if (!j.ok) throw Object.assign(new Error(j.error || 'Server refused the receipt.'), { server: true });
@@ -734,7 +738,7 @@
     if (!configured()) { setSettingsMsg('Enter the server link and access key first.', true); return; }
     setSettingsMsg('Testing...');
     try {
-      const j = await post(JSON.stringify({ action: 'ping', key: settings.key }));
+      const j = await post(JSON.stringify({ action: 'ping', key: srvKey() }));
       setSettingsMsg('Connected. Receipts will email: ' + (j.emailTo || '(not set on server)'));
     } catch (e) { setSettingsMsg('Test failed: ' + e.message, true); }
   });

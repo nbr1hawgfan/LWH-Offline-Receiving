@@ -46,15 +46,19 @@
 
     <section class="tools">
       <h2 class="section-title">Settings</h2>
-      <p class="hint">Set these once per phone or tablet. Your IT contact or Tim has the server link and key.</p>
+      <p class="hint">Enter your name and site once per phone or tablet, then tap Test connection.</p>
       <label class="field"><span>Your name (received by)</span>
         <input id="sName" class="big" autocomplete="name" maxlength="60"></label>
       <label class="field"><span>Site</span>
         <input id="sSite" class="big" maxlength="80" placeholder="New warehouse"></label>
+      <details class="advanced">
+        <summary>Advanced: server override (leave blank)</summary>
+        <p class="hint">The server is built into the app. Only fill these in to point this device at a different server.</p>
       <label class="field"><span>Server link (Apps Script web app URL)</span>
-        <input id="sUrl" class="big" type="url" autocomplete="off" spellcheck="false" placeholder="https://script.google.com/macros/s/.../exec"></label>
+        <input id="sUrl" class="big" type="url" autocomplete="off" spellcheck="false" placeholder="Built in"></label>
       <label class="field"><span>Access key</span>
         <input id="sKey" class="big" type="password" autocomplete="off"></label>
+      </details>
       <div class="tool-row">
         <button id="saveSettingsBtn" class="btn btn-primary">Save settings</button>
         <button id="testBtn" class="btn">Test connection</button>

@@ -1,4 +1,4 @@
-# LWH Offline Receiving (v1.1.0)
+# LWH Offline Receiving (v1.2.0)
 
 Receiving app for a site with cellular but no connection to the LWH network or WMS.
 Floor staff capture the BOL info, take photos of the BOL, and scan each unit (model, serial, weight, year).

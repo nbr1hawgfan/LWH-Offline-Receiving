@@ -20,6 +20,13 @@
 window.LWH_CONFIG = {
   appName: 'LWH Offline Receiving',
 
+  // Apps Script backend. Built in so devices only need a name and site.
+  // If the key is ever changed in Script Properties, change it here too and bump the version.
+  server: {
+    url: 'https://script.google.com/macros/s/AKfycby9nCHmj2IkC7Hu0cH0_kxkj2ydDR9BuphTSdNSdJqF-3IyW0eJ8uoRhtn-drVd4m_Jkg/exec',
+    key: 'DB7D09A8F1194706'
+  },
+
   // Header weather: use the new site's coordinates once known. Default is Fort Smith, AR.
   weather: { lat: 35.3859, lon: -94.3985, label: 'Fort Smith' },
 

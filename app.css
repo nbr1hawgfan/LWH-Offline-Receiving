@@ -241,3 +241,5 @@ select.big:focus, textarea.big:focus { border-color: var(--red); outline: none; 
 .unit-photo-state { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; font-weight: 700; color: var(--ok); }
 .unit-photo-state img { width: 70px; height: 70px; object-fit: cover; border: 2px solid var(--black); }
 .unit-photo-state:empty { display: none; }
+details.advanced { margin: 4px 0 14px; padding: 10px 12px; border: 2px dashed var(--line); }
+details.advanced summary { cursor: pointer; font-weight: 700; color: var(--muted); }
